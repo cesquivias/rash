@@ -1,0 +1,26 @@
+#+title: Racket Shell (rash)
+#+options: num:nil html-postamble:nil
+
+Rash is command line shell built on top of the Racket programming environment with the entire power of the platform available.
+
+The default language is based on lisp. Language extensions can be loaded dynamically.
+
+* Goals
+ - Take advantage of Racket's language capabilities to create an easy-to-use shell.
+ - An intuitive syntax that's memorable and doesn't require an [[http://www.tldp.org/LDP/abs/html/][38 chapter guide]].
+ - Extendable language through Racket's language creation libraries.
+
+* Non Goals
+ - Lean, mean memory usage
+   The Racket VM takes more memory than bash or other shells. All things being equal, a process should take as much memory as needed and no more but spending effort to cut down rash's memory usage isn't a priority.
+
+* Motivation
+  All current shells have a line when scripts become too complicated, and you need to switch from bash/zsh/fish to a more general purpose scripting language like Perl/Python/Ruby. Current shell languages provide robust programming environment to grow hackish, one-off scripts into large, robust programs.
+
+The switch to "scripting" languages has its own problems. Although you now have a language that provides useful data structures and paradigms for more complex problems, job control and process pipelining takes a backseat. Spawning processes and redirecting output become second-class citizens. If they weren't, why not use Python as a login shell?
+
+Rash tries to bridge this gap using the Racket programming environment. Racket is uniquely positioned to tackle this problem. The programming environment is built with the purpose of creating domain specific languages (DSLs) to solve specific technical problems while still having the full power of Racket at your disposal. Rash is just a DSL in Racket specifically designed to be a command line shell; that is, it's emphasis is on spawning jobs and redirecting IO.
+
+* Getting Started
+** Installation
+   Rash requires the Racket programming environment 6.0 or greater. You can download the latest version from [[http://download.racket-lang.org/][Racket's download page]].
