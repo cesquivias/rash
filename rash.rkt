@@ -1,31 +1,56 @@
 #lang racket/base
 
+(require racket/port)
 (require racket/string)
 
-(provide run)
+(provide start)
 
-(define (run command . args)
-  (let ([cmd (find-executable-path command)]
-        [output-port (file-port? (current-output-port))]
-        [input-port (file-port? (current-input-port))]
-        [error-port (file-port? (current-error-port))])
-    (if cmd
-        (let-values ([(subproc in out err)
-                      (subprocess output-port
-                                  input-port
-                                  error-port
-                                  cmd
-                                  (string-join args " "))])
-          (subprocess-wait subproc)
-          (when (input-port? in)
-            (close-input-port in))
-          (when (output-port? out)
-            (close-output-port out))
-          (when (output-port? err)
-            (close-output-port err)))
-        (raise (string-append command ": command not found")))))
+(define (start command args #:stdin [stdin #f])
+  (define cmd (find-executable-path command))
+  (unless cmd
+    (raise (string-append command ": command not found")))
+  (define reverse-args (list cmd
+                             (current-error-port)
+                             stdin
+                             (current-output-port)))
+  (define-values (proc out in err)
+    (if (null? args)
+        (apply subprocess (reverse reverse-args))
+        (apply subprocess (reverse (cons (string-join args)
+                                         reverse-args)))))
+  (subprocess-wait proc))
 
-(define (file-port? port)
-  (if (file-stream-port? port)
-      port
-      #f))
+(module+ test
+  (require rackunit)
+  (require racket/match)
+  (require racket/system)
+
+  (test-case
+   "Spawn a sub process with current-output-port for stdout and
+    current-error-port for stderr. stdin is not used."
+   (let ([stdout (open-output-string)])
+     (match-let ([(list _ stdin pid stderr state-fn)
+                  (process*/ports
+                   stdout
+                   #f
+                   (current-error-port)
+                   (find-executable-path "racket")
+                   "-e"
+                   "(require \"rash.rkt\") (start \"echo\" '(\"hello\"))")])
+       (state-fn 'wait)
+       (check string=? "hello\n" (get-output-string stdout)))))
+
+  (test-case
+   "Spawn a sub process with piping in stdin."
+   (let ([stdout (open-output-string)])
+     (match-let ([(list _ _ pid stderr state-fn)
+                  (process*/ports
+                   stdout
+                   (open-input-string "hello")
+                   (current-error-port)
+                   (find-executable-path "racket")
+                   "-e"
+                   "(require \"rash.rkt\") (start \"wc\" '(\"-c\") #:stdin (current-input-port))")])
+       (state-fn 'wait)
+       (check string=? "5" (string-trim (get-output-string stdout))))))
+)
