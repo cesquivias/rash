@@ -1,14 +1,25 @@
 #lang racket/base
 
+(require racket/contract)
 (require racket/port)
 (require racket/string)
 
-(provide start pipe)
+(define (executable? bin)
+  (find-executable-path bin))
+
+(define (executable-list? command)
+  (and (find-executable-path (car command))
+       (foldl (λ (i j) (and i j)) #t (map string? (cdr command)))))
+
+(provide (contract-out
+          [start (->* (executable? (listof string?))
+                      (#:stdin (or/c #f file-stream-port?))
+                      void?)]
+          [pipe (-> (listof string?) (listof string?)
+                    void?)]))
 
 (define (start command args #:stdin [stdin #f])
   (define cmd (find-executable-path command))
-  (unless cmd
-    (raise (string-append command ": command not found")))
   (define-values (proc out in err)
     (apply subprocess
            (current-output-port)
