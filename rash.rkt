@@ -3,22 +3,37 @@
 (require racket/port)
 (require racket/string)
 
-(provide start)
+(provide start pipe)
 
 (define (start command args #:stdin [stdin #f])
   (define cmd (find-executable-path command))
   (unless cmd
     (raise (string-append command ": command not found")))
-  (define reverse-args (list cmd
-                             (current-error-port)
-                             stdin
-                             (current-output-port)))
   (define-values (proc out in err)
-    (if (null? args)
-        (apply subprocess (reverse reverse-args))
-        (apply subprocess (reverse (cons (string-join args)
-                                         reverse-args)))))
+    (apply subprocess
+           (current-output-port)
+           stdin
+           (current-error-port)
+           cmd
+           args))
   (subprocess-wait proc))
+
+(define (pipe command1 command2)
+  (define-values (proc-1 out-1 in-1 err-1)
+    (apply subprocess
+           #f
+           #f
+           (current-error-port)
+           (find-executable-path (car command1))
+           (cdr command1)))
+  (define-values (proc-2 out-2 in-2 err-2)
+    (apply subprocess
+           (current-output-port)
+           out-1
+           (current-error-port)
+           (find-executable-path (car command2))
+           (cdr command2)))
+  (subprocess-wait proc-2))
 
 (module+ test
   (require rackunit)
@@ -50,4 +65,11 @@
    (define stdout (launch-racket
                    "(require \"rash.rkt\") (start \"wc\" '(\"-c\") #:stdin (current-input-port))"
                    (open-input-string "hello")))
+   (check string=? "5" (string-trim (get-output-string stdout))))
+
+  (test-case
+   "Pipe stdout of one process to the other"
+   (define stdout (launch-racket
+                   "(require \"rash.rkt\") (pipe '(\"echo\" \"-n\" \"hello\") '(\"wc\" \"-c\"))"
+                   #f))
    (check string=? "5" (string-trim (get-output-string stdout)))))
