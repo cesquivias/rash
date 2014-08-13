@@ -1,8 +1,10 @@
-#lang racket/base
+#lang racket
 
 (require racket/contract)
 (require racket/port)
 (require racket/string)
+
+(require (for-syntax racket/syntax))
 
 (define (executable? bin)
   (find-executable-path bin))
@@ -16,7 +18,8 @@
                       (#:stdin (or/c #f file-stream-port?))
                       void?)]
           [pipe (-> (listof string?) (listof string?)
-                    void?)]))
+                    void?)])
+         run)
 
 (define (start command args #:stdin [stdin #f])
   (define cmd (find-executable-path command))
@@ -28,6 +31,15 @@
            cmd
            args))
   (subprocess-wait proc))
+
+(define-syntax (run stx)
+  (syntax-case stx ()
+    [(run command arg ...)
+     (let ([datum (syntax->datum stx)])
+       (datum->syntax stx (list 'start
+                                (symbol->string (cadr datum))
+                                (cons 'list
+                                      (map symbol->string (cddr datum))))))]))
 
 (define (pipe command1 command2)
   (define-values (proc-1 out-1 in-1 err-1)
@@ -83,4 +95,11 @@
    (define stdout (launch-racket
                    "(require \"rash.rkt\") (pipe '(\"echo\" \"-n\" \"hello\") '(\"wc\" \"-c\"))"
                    #f))
-   (check string=? "5" (string-trim (get-output-string stdout)))))
+   (check string=? "5" (string-trim (get-output-string stdout))))
+
+  (test-case
+   "Using run macro to spawn process"
+   (define stdout (launch-racket
+                   "(require \"rash.rkt\") (run echo -n hello world)"
+                   #f))
+   (check string=? "hello world" (get-output-string stdout))))
