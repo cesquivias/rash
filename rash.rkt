@@ -17,8 +17,7 @@
           [start (->* (executable? (listof string?))
                       (#:stdin (or/c #f file-stream-port?))
                       void?)]
-          [pipe (-> (listof string?) (listof string?)
-                    void?)])
+          [pipe (->* () () #:rest (listof list?) void?)])
          run)
 
 (define (start command args #:stdin [stdin #f])
@@ -41,22 +40,31 @@
                                 (cons 'list
                                       (map symbol->string (cddr datum))))))]))
 
-(define (pipe command1 command2)
-  (define-values (proc-1 out-1 in-1 err-1)
-    (apply subprocess
-           #f
-           #f
-           (current-error-port)
-           (find-executable-path (car command1))
-           (cdr command1)))
-  (define-values (proc-2 out-2 in-2 err-2)
-    (apply subprocess
-           (current-output-port)
-           out-1
-           (current-error-port)
-           (find-executable-path (car command2))
-           (cdr command2)))
-  (subprocess-wait proc-2))
+(define-syntax-rule (apply-values fn body ...)
+  (call-with-values (λ () body ...) fn))
+
+(struct process (job std-out std-in std-err))
+
+(define (pipe . commands)
+  (let loop ([std-in-arg #f]
+             [procs '()]
+             [commands commands])
+    (define command (car commands))
+    (define last-process? (= (length commands) 1))
+    (define std-out-arg (if last-process?
+                            (current-output-port)
+                            #f))
+    (define proc (apply-values process
+                               (apply subprocess std-out-arg
+                                      std-in-arg
+                                      (current-output-port)
+                                      (find-executable-path
+                                       (car command))
+                                      (cdr command))))
+    (if last-process?
+        (subprocess-wait (process-job proc))
+        (loop (process-std-out proc) (cons proc procs) (cdr commands)))))
+  
 
 (module+ test
   (require rackunit)
@@ -91,11 +99,11 @@
    (check string=? "5" (string-trim (get-output-string stdout))))
 
   (test-case
-   "Pipe stdout of one process to the other"
+   "Pipe stdout of one process to another"
    (define stdout (launch-racket
-                   "(require \"rash.rkt\") (pipe '(\"echo\" \"-n\" \"hello\") '(\"wc\" \"-c\"))"
+                   "(require \"rash.rkt\") (pipe '(\"echo\" \"-n\" \"hello\") '(\"cut\" \"-c\" \"3-\") '(\"wc\" \"-c\"))"
                    #f))
-   (check string=? "5" (string-trim (get-output-string stdout))))
+   (check string=? "4" (string-trim (get-output-string stdout))))
 
   (test-case
    "Using run macro to spawn process"
