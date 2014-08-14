@@ -17,8 +17,10 @@
           [start (->* (executable? (listof string?))
                       (#:stdin (or/c #f file-stream-port?))
                       void?)]
+          ;; TODO: validate pipe's commands are lists of strings
           [pipe (->* () () #:rest (listof list?) void?)])
-         run)
+         run
+         ~>)
 
 (define (start command args #:stdin [stdin #f])
   (define cmd (find-executable-path command))
@@ -32,6 +34,7 @@
   (subprocess-wait proc))
 
 (define-syntax (run stx)
+  ;; TODO: Allow string to already be in use
   (syntax-case stx ()
     [(run command arg ...)
      (let ([datum (syntax->datum stx)])
@@ -65,6 +68,16 @@
         (subprocess-wait (process-job proc))
         (loop (process-std-out proc) (cons proc procs) (cdr commands)))))
   
+(define-syntax (~> stx)
+  ;; TODO: Add ability to have just a symbol for argument-less commands
+  ;; TODO: Allow strings to already be in use for args
+  (syntax-case stx ()
+    [(~> command ...)
+     (datum->syntax stx
+                    (cons 'pipe
+                          (map (λ (e) (list 'quote (map symbol->string e)))
+                               (cdr (syntax->datum stx)))))]))
+
 
 (module+ test
   (require rackunit)
@@ -94,14 +107,18 @@
   (test-case
    "Spawn a sub process with piping in stdin."
    (define stdout (launch-racket
-                   "(require \"rash.rkt\") (start \"wc\" '(\"-c\") #:stdin (current-input-port))"
+                   "(require \"rash.rkt\") \
+                    (start \"wc\" '(\"-c\") #:stdin (current-input-port))"
                    (open-input-string "hello")))
    (check string=? "5" (string-trim (get-output-string stdout))))
 
   (test-case
    "Pipe stdout of one process to another"
    (define stdout (launch-racket
-                   "(require \"rash.rkt\") (pipe '(\"echo\" \"-n\" \"hello\") '(\"cut\" \"-c\" \"3-\") '(\"wc\" \"-c\"))"
+                   "(require \"rash.rkt\") \
+                    (pipe '(\"echo\" \"-n\" \"hello\") \
+                          '(\"cut\" \"-c\" \"3-\") \
+                          '(\"wc\" \"-c\"))"
                    #f))
    (check string=? "4" (string-trim (get-output-string stdout))))
 
@@ -110,4 +127,12 @@
    (define stdout (launch-racket
                    "(require \"rash.rkt\") (run echo -n hello world)"
                    #f))
-   (check string=? "hello world" (get-output-string stdout))))
+   (check string=? "hello world" (get-output-string stdout)))
+
+  (test-case
+   "Using ~> macro to pipe processes"
+   (define stdout (launch-racket
+                   "(require \"rash.rkt\") \
+                    (~> (echo hello) (cut -c 3-) (wc -c))"
+                   #f))
+   (check string=? "4" (string-trim (get-output-string stdout)))))
