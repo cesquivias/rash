@@ -13,7 +13,7 @@
   (define-values (start-line start-col start-pos) (port-next-location in))
   (define (list->rash-syntax l span)
     (datum->syntax #f
-                   (cons 'start l)
+                   l
                    (vector src start-line start-col start-pos span)))
 
   (let loop ([words '()]
@@ -58,14 +58,14 @@
 
   (test-case
    "Read alphanumeric words with EOF"
-   (check equal? '(start "echo" "hello1") (rash-read (2port "echo hello1"))))
+   (check equal? '("echo" "hello1") (rash-read (2port "echo hello1"))))
 
   (test-case
    "Read string with newline"
-   (check equal? '(start "echo") (rash-read (2port "echo\n"))))
+   (check equal? '("echo") (rash-read (2port "echo\n"))))
 
   (test-case
    "Read string"
    (check equal?
-          '(start "echo" "hello world")
+          '("echo" "hello world")
           (rash-read (2port "echo \"hello world\"")))))
