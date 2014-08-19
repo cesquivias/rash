@@ -25,17 +25,22 @@
          (define m (bytes->string/utf-8 (car r)))
          (define len (string-length m))
          (define word (datum->syntax #f m (vector src line col pos len)))
-         (loop (cons word words) len))]
+         (loop (cons word words) (+ delta len)))]
      [(regexp-try-match #px"^\n" in) => (λ (m)
                                            (if (null? words)
                                                (loop words (add1 delta))
                                                (list->rash-syntax
                                                 (reverse words)
                                                 delta)))]
-     [(regexp-try-match #px"^[ \t]+" in) => (λ (r)
-                                               (define m
-                                                 (bytes->string/utf-8 (car r)))
-                                               (loop words (string-length m)))]
+     [(regexp-try-match #px"^[ \t]+" in) =>
+      (λ (r)
+         (define m (bytes->string/utf-8 (car r)))
+         (loop words (+ delta (string-length m))))]
+     [(regexp-match-peek #px"^\"" in)
+      (let* ([str (read in)]
+             [len (+ 2 (string-length str))]
+             [stx (datum->syntax #f str (vector src line col pos len))])
+        (loop (cons str words) (+ delta len)))]
      [(eof-object? (peek-char in))
       (read-char in)
       (if (null? words)
@@ -57,4 +62,10 @@
 
   (test-case
    "Read string with newline"
-   (check equal? '(start "echo") (rash-read (2port "echo\n")))))
+   (check equal? '(start "echo") (rash-read (2port "echo\n"))))
+
+  (test-case
+   "Read string"
+   (check equal?
+          '(start "echo" "hello world")
+          (rash-read (2port "echo \"hello world\"")))))
