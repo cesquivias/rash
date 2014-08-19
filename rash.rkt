@@ -1,10 +1,10 @@
-#lang racket
+#lang racket/base
 
 (require racket/contract)
 (require racket/port)
 (require racket/string)
 
-(require (for-syntax racket/syntax))
+(require (for-syntax racket/base))
 
 (define (executable? bin)
   (find-executable-path bin))
@@ -14,7 +14,11 @@
        (foldl (λ (i j) (and i j)) #t (map string? (cdr command)))))
 
 (provide (contract-out
-          [start (->* (executable? (listof string?))
+          [start (->* (executable?)
+                      ()
+                      #:rest (listof string?)
+                      void?)]
+          [start* (->* (executable? (listof string?))
                       (#:stdin (or/c #f file-stream-port?))
                       void?)]
           ;; TODO: validate pipe's commands are lists of strings
@@ -22,7 +26,10 @@
          run
          ~>)
 
-(define (start command args #:stdin [stdin #f])
+(define (start command . args)
+  (start* command args #:stdin (current-input-port)))
+
+(define (start* command args #:stdin [stdin #f])
   (define cmd (find-executable-path command))
   (define-values (proc out in err)
     (apply subprocess
@@ -38,10 +45,11 @@
   (syntax-case stx ()
     [(run command arg ...)
      (let ([datum (syntax->datum stx)])
-       (datum->syntax stx (list 'start
-                                (symbol->string (cadr datum))
-                                (cons 'list
-                                      (map symbol->string (cddr datum))))))]))
+       (datum->syntax stx (apply list
+                                 'start
+                                 (symbol->string (cadr datum)) ; command
+                                 (map symbol->string (cddr datum)) ; args
+                                 )))]))
 
 (define-syntax-rule (apply-values fn body ...)
   (call-with-values (λ () body ...) fn))
@@ -100,7 +108,7 @@
    "Spawn a sub process with current-output-port for stdout and
     current-error-port for stderr. stdin is not used."
    (define stdout (launch-racket
-                   "(require \"rash.rkt\") (start \"echo\" '(\"hello\"))"
+                   "(require \"rash.rkt\") (start \"echo\" \"hello\")"
                    #f))
    (check string=? "hello\n" (get-output-string stdout)))
 
@@ -108,7 +116,7 @@
    "Spawn a sub process with piping in stdin."
    (define stdout (launch-racket
                    "(require \"rash.rkt\") \
-                    (start \"wc\" '(\"-c\") #:stdin (current-input-port))"
+                    (start* \"wc\" '(\"-c\") #:stdin (current-input-port))"
                    (open-input-string "hello")))
    (check string=? "5" (string-trim (get-output-string stdout))))
 

@@ -1,7 +1,10 @@
 #lang racket/base
 
 (require syntax/readerr
-         (prefix-in rash: "rash.rkt"))
+         (prefix-in rash: "language.rkt"))
+
+(provide (rename-out [rash-read read]
+                     [rash-read-syntax read-syntax]))
 
 (define (rash-read in)
   (syntax->datum (rash-read-syntax #f in)))
@@ -23,15 +26,21 @@
          (define len (string-length m))
          (define word (datum->syntax #f m (vector src line col pos len)))
          (loop (cons word words) len))]
-     [(regexp-try-match #px"^\n" in) => (λ (m) (list->rash-syntax
+     [(regexp-try-match #px"^\n" in) => (λ (m)
+                                           (if (null? words)
+                                               (loop words (add1 delta))
+                                               (list->rash-syntax
                                                 (reverse words)
-                                                delta))]
+                                                delta)))]
      [(regexp-try-match #px"^[ \t]+" in) => (λ (r)
                                                (define m
                                                  (bytes->string/utf-8 (car r)))
-                                               (displayln m)
                                                (loop words (string-length m)))]
-     [(eof-object? (peek-char in)) (list->rash-syntax (reverse words) delta)]
+     [(eof-object? (peek-char in))
+      (read-char in)
+      (if (null? words)
+          eof
+          (list->rash-syntax (reverse words) delta))]
      [else (raise-read-error
             (string-append "Unknown character " (read-char in))
             src line col pos 1)])))
