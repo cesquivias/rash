@@ -14,6 +14,7 @@
        (foldl (λ (i j) (and i j)) #t (map string? (cdr command)))))
 
 (provide (contract-out
+          ;; TODO: Accept any/c for args. Convert to string in function.
           [start (->* (executable?)
                       ()
                       #:rest (listof string?)

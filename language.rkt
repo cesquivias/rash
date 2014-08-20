@@ -4,6 +4,7 @@
 
 (provide start
          pipe
+         ~>
          (except-out (all-from-out racket/base)
                      #%app
                      #%top)

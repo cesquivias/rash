@@ -19,8 +19,14 @@
   (let loop ([words '()]
              [delta 0])
     (define-values (line col pos) (port-next-location in))
+    (define peeked-char (peek-char in))
     (cond
-     [(regexp-try-match #px"^[[:alnum:]]+" in) =>
+     [(eof-object? peeked-char)
+      (read-char in)
+      (if (null? words)
+          eof
+          (list->rash-syntax (reverse words) delta))]
+     [(regexp-try-match #px"^[[:alnum:]~>]+" in) =>
       (λ (r)
          (define m (bytes->string/utf-8 (car r)))
          (define len (string-length m))
@@ -36,16 +42,15 @@
       (λ (r)
          (define m (bytes->string/utf-8 (car r)))
          (loop words (+ delta (string-length m))))]
-     [(regexp-match-peek #px"^\"" in)
+     [(char=? #\( peeked-char)
+      (define lst (read in))
+      (define stx (datum->syntax #f lst))
+      (loop (cons stx words) delta)]
+     [(char=? #\" peeked-char)
       (let* ([str (read in)]
              [len (+ 2 (string-length str))]
              [stx (datum->syntax #f str (vector src line col pos len))])
-        (loop (cons str words) (+ delta len)))]
-     [(eof-object? (peek-char in))
-      (read-char in)
-      (if (null? words)
-          eof
-          (list->rash-syntax (reverse words) delta))]
+        (loop (cons stx words) (+ delta len)))]
      [else (raise-read-error
             (string-append "Unknown character " (read-char in))
             src line col pos 1)])))
@@ -68,4 +73,8 @@
    "Read string"
    (check equal?
           '("echo" "hello world")
-          (rash-read (2port "echo \"hello world\"")))))
+          (rash-read (2port "echo \"hello world\""))))
+
+  (test-case
+   "Read an s-exp"
+   (check equal? '((~> (echo) (wc))) (rash-read (2port "(~> (echo) (wc))")))))
