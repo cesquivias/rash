@@ -5,6 +5,17 @@ Rash is command line shell built on top of the Racket programming environment wi
 
 The default language is based on lisp. Language extensions can be loaded dynamically.
 
+* Examples
+#+begin_src shell-script
+  #!/usr/bin/env racket
+  #lang rash
+
+  echo Hello World
+  echo "Hello in a string!"
+
+  (~> (echo Piping Example) (wc -c))
+#+end_src
+
 * Goals
  - Take advantage of Racket's language capabilities to create an easy-to-use shell.
  - An intuitive syntax that's memorable and doesn't require an [[http://www.tldp.org/LDP/abs/html/][38 chapter guide]].

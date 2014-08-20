@@ -15,6 +15,13 @@
     (datum->syntax #f
                    l
                    (vector src start-line start-col start-pos span)))
+  (define (finish-line words delta)
+    (cond
+     [(null? words) eof]
+     [(and (= 1 (length words))
+           (syntax->list (car words)))
+      (list->rash-syntax (car words) delta)]
+     [else (list->rash-syntax (reverse words) delta)]))
 
   (let loop ([words '()]
              [delta 0])
@@ -23,9 +30,7 @@
     (cond
      [(eof-object? peeked-char)
       (read-char in)
-      (if (null? words)
-          eof
-          (list->rash-syntax (reverse words) delta))]
+      (finish-line words delta)]
      [(regexp-try-match #px"^[[:alnum:]~>]+" in) =>
       (λ (r)
          (define m (bytes->string/utf-8 (car r)))
@@ -35,9 +40,7 @@
      [(regexp-try-match #px"^\n" in) => (λ (m)
                                            (if (null? words)
                                                (loop words (add1 delta))
-                                               (list->rash-syntax
-                                                (reverse words)
-                                                delta)))]
+                                               (finish-line words delta)))]
      [(regexp-try-match #px"^[ \t]+" in) =>
       (λ (r)
          (define m (bytes->string/utf-8 (car r)))
@@ -76,5 +79,12 @@
           (rash-read (2port "echo \"hello world\""))))
 
   (test-case
-   "Read an s-exp"
-   (check equal? '((~> (echo) (wc))) (rash-read (2port "(~> (echo) (wc))")))))
+   "Read an s-expression"
+   (check-equal? '(~> (echo) (wc)) (rash-read (2port "(~> (echo) (wc))"))
+                 "One s-exp ending in eof")
+   (check-equal? '(~> (echo) (wc)) (rash-read (2port "(~> (echo) (wc))\n"))
+                 "One s-exp ending in newline"))
+
+  (test-case
+   "Read a sub s-expression"
+   (check equal? '("~>" (echo) (wc)) (rash-read (2port "~> (echo) (wc)")))))
