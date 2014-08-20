@@ -76,7 +76,13 @@
     (if last-process?
         (subprocess-wait (process-job proc))
         (loop (process-std-out proc) (cons proc procs) (cdr commands)))))
-  
+
+(define-for-syntax (convert-pipe-command cmd)
+  (list 'quote (map (λ (e) (cond
+                            [(symbol? e) (symbol->string e)]
+                            [else e]))
+                    cmd)))
+
 (define-syntax (~> stx)
   ;; TODO: Add ability to have just a symbol for argument-less commands
   ;; TODO: Allow strings to already be in use for args
@@ -84,7 +90,7 @@
     [(~> command ...)
      (datum->syntax stx
                     (cons 'pipe
-                          (map (λ (e) (list 'quote (map symbol->string e)))
+                          (map convert-pipe-command
                                (cdr (syntax->datum stx)))))]))
 
 
@@ -144,4 +150,11 @@
                    "(require \"rash.rkt\") \
                     (~> (echo hello) (cut -c 3-) (wc -c))"
                    #f))
-   (check string=? "4" (string-trim (get-output-string stdout)))))
+   (check string=? "4" (string-trim (get-output-string stdout))))
+
+  (test-case
+   "~> takes commands with strings"
+   (define stdout (launch-racket
+                   "(require \"rash.rkt\") (~> (echo -n \"hello\"))"
+                   #f))
+   (check string=? "hello" (get-output-string stdout))))
