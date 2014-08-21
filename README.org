@@ -34,4 +34,47 @@ Rash tries to bridge this gap using the Racket programming environment. Racket i
 
 * Getting Started
 ** Installation
-   Rash requires the Racket programming environment 6.0 or greater. You can download the latest version from [[http://download.racket-lang.org/][Racket's download page]].
+   Rash requires the Racket programming environment[fn:1]. You can download the latest version from [[http://download.racket-lang.org/][Racket's download page]].
+** Custom functions
+   You can expand Rash's functionality by writing your own custom functions. Racket's default syntax for creating functions works perfectly.
+#+begin_src scheme
+  #!/usr/bin/env racket
+  #lang rash
+
+  (define (racket-file? fname)
+    (string-ref fname ".rkt"))
+
+#+end_src
+* Under the Hood
+   Rash is built from three abstraction layers. Each level removes some of Racket's complexity to focus on tasks done in a shell. From the topmost abstraction layer:
+   - Reader
+   - Module language
+   - Library
+The reader and module language sections plugs into Racket's langauge creation tools. Read the [[http://docs.racket-lang.org/guide/languages.html][Creating Languages]] section of the [[http://docs.racket-lang.org/guide/index.html][Racket Guide]] for an introduction.
+** Reader
+   The job of the reader is to take a stream of bytes and create an abstract syntax tree. Rash is different from Racket in that it uses newlines as a statement separator while Racket uses parentheses to delimit all expressions.
+
+Rash only has 3 main datatypes the reader handles:
+   - String :: Nearly all tokens read by the reader will be converted to a Racket string. For example, a simple line like =echo Hello world= is of strings.
+   - Symbol :: (Not Yet Implemented) When a token begins with $ it is a symbol. Symbols will be resolved later on as either a Racket variable or a system variable.
+   - Expression :: When Rash sees an open parenthesis it reads the input as a normal Racket s-expression. All the power of Racket is available here.
+** Module Language
+   The module language level specifies how Rash expressions are evaluated and what the builtin functions are provided. Rash's evaluation is similar typical Racket but contains a sepcial twist: strings as procedures.
+
+From the [[Reader]] all top-level expressions that aren't variables or Racket expressions are read in as strings. Strings are used as paths to external programs. That is, when Rash sees you are trying to evaluate an procedure call with a string as a procedure it will look for an executable file with name in your PATH environment variable and start a process of that executable.[fn:2]
+
+There are some special cases like the pipe operator (=~>=) that circumvent this.
+
+The other duty of the module language is to provide all the necessary built-in functions that Rash provides to be a useful, convenient shell language. These builtins are functions like =cd=, =export= and other common shell builtins written at the library level.[fn:3] These builtins come from either Rash's library or from [[http://docs.racket-lang.org/reference/][Racket's standard library]]. Because Rash exposes [[http://docs.racket-lang.org/reference/require.html][=require=]], any other library or code written for the Racket environment is available in Rash.
+** Library
+   At its lowest level, Rash is just a Racket library with convenience functions and macros to spawn a new process, pipe processes together. When using Rash, these functions are considered the builtins that do not spawn a new process.
+
+   Because the whole power of Racket is available when using Rash, functionality that other shell environments have to provide are not implemented in Rash's library; those builtins like conditionals and loops are provided by Racket.
+
+* Footnotes
+
+[fn:1] TODO: Determine the minimum version of Racket required.
+
+[fn:2] TODO: Handle absolute and relative paths for executables.
+
+[fn:3] TODO: Provide link to doc page for all builtins.
